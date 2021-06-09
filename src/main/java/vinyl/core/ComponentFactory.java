@@ -115,7 +115,7 @@ public class ComponentFactory {
 
                 String className = filename.substring(0, filename.lastIndexOf("."));
 
-                Class<?> aClass = Class.forName(packageName + "." + className);
+                Class aClass = Class.forName(packageName + "." + className);
 
                 processClass(aClass);
             }
