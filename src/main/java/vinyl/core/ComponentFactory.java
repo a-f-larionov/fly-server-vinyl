@@ -12,17 +12,20 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class ComponentFactory {
 
     private Map<String, Object> singletons = new HashMap();
 
     ComponentFactory(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
-        scanAndProcessClasses(applicationClass);
+
+        List<Class<?>> classList = scanClasses(applicationClass);
+
+        processClasses(classList);
+
         autowiring();
+
         postConstructors();
     }
 
@@ -82,7 +85,9 @@ public class ComponentFactory {
         }
     }
 
-    private void scanAndProcessClasses(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    private List<Class<?>> scanClasses(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+
+        List<Class<?>> classList = new ArrayList<>();
 
         String packageName = applicationClass.getPackageName();
 
@@ -94,13 +99,19 @@ public class ComponentFactory {
 
         while (resources.hasMoreElements()) {
             URL url = resources.nextElement();
-            scanDir(url.toString(), packageName);
+
+            classList.addAll(
+                    scanDir(url.toString(), packageName)
+            );
         }
+
+        return classList;
     }
 
-    private void scanDir(String url, String packageName) throws ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    private List<Class<?>> scanDir(String url, String packageName) throws ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
 
-        //   System.out.println(url);
+        List<Class<?>> classList = new ArrayList<>();
+
         File file = new File(URI.create(url));
 
         for (File classFile : file.listFiles()) {
@@ -115,10 +126,18 @@ public class ComponentFactory {
 
                 String className = filename.substring(0, filename.lastIndexOf("."));
 
-                Class aClass = Class.forName(packageName + "." + className);
+                Class<?> aClass = Class.forName(packageName + "." + className);
 
-                processClass(aClass);
+                classList.add(aClass);
             }
+        }
+        return classList;
+    }
+
+    private void processClasses(List<Class<?>> classList) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+
+        for (Class<?> aClass : classList) {
+            processClass(aClass);
         }
     }
 
