@@ -13,8 +13,9 @@ public class ServiceA {
     @PostConstructor
     private void init() {
 
-        serviceB.doSome();
+        System.out.println("init service A");
 
-        System.out.println("post constructor on service B");
+        // this is a bad idea
+        serviceB.doSome();
     }
 }

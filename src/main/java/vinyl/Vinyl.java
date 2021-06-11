@@ -1,5 +1,7 @@
-package vinyl.core;
+package vinyl;
 
+
+import vinyl.core.ComponentFactory;
 
 public class Vinyl {
 
@@ -12,9 +14,13 @@ public class Vinyl {
 
         } catch (Exception e) {
 
-            System.err.println(e.getMessage());
+            System.out.println(e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Something wrong", e);
+
+            Throwable cause = e.getCause();
+            System.out.println(cause.getMessage());
+            cause.printStackTrace();
+
         }
     }
 }

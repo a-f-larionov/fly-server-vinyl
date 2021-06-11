@@ -1,10 +1,10 @@
 package fly;
 
-import vinyl.core.Vinyl;
+import vinyl.Vinyl;
 
 public class Application {
 
-    public static void main(String[] args) {
+    public static void main(String[] args)  {
 
         Vinyl.run(Application.class);
 

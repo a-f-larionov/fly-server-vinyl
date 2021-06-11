@@ -1,8 +1,10 @@
 package vinyl.core;
 
-import vinyl.annotation.Component;
+import vinyl.Vinyl;
 import vinyl.annotation.Autowired;
+import vinyl.annotation.Component;
 import vinyl.annotation.PostConstructor;
+import vinyl.intefaces.ComponentProcessor;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,20 +15,60 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
+import java.util.function.Consumer;
 
 public class ComponentFactory {
 
     private Map<String, Object> singletons = new HashMap();
 
-    ComponentFactory(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public ComponentFactory(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
 
-        List<Class<?>> classList = scanClasses(applicationClass);
+        List<Class<?>> classList = scanClasses(Vinyl.class);
 
-        processClasses(classList);
+        classList.addAll(scanClasses(applicationClass));
+
+
+        addToSingletons(classList);
+
+        beforeInit();
 
         autowiring();
 
         postConstructors();
+
+        afterInit();
+    }
+
+    private void beforeInit() {
+        workWithInterfaced(ComponentProcessor.class, (singleton) ->
+                codeWithSingletons(
+                        ((ComponentProcessor) singleton)::beforeInit
+                )
+        );
+    }
+
+    private void afterInit() {
+        workWithInterfaced(ComponentProcessor.class, (singleton) ->
+                codeWithSingletons(
+                        ((ComponentProcessor) singleton)::afterInit
+                )
+        );
+    }
+
+    private void codeWithSingletons(Consumer run) {
+        singletons.forEach((name, component) -> {
+            run.accept(component);
+        });
+    }
+
+    private void workWithInterfaced(Class aInterface, Consumer doWhat) {
+
+        singletons.forEach((name, singleton) -> {
+            if (Arrays.asList(singleton.getClass().getInterfaces())
+                    .contains(aInterface)) {
+                doWhat.accept(singleton);
+            }
+        });
     }
 
     private void postConstructors() throws InvocationTargetException, IllegalAccessException {
@@ -47,6 +89,7 @@ public class ComponentFactory {
         if (method.canAccess(component)) {
 
             method.invoke(component);
+
         } else {
 
             method.setAccessible(true);
@@ -104,7 +147,6 @@ public class ComponentFactory {
                     scanDir(url.toString(), packageName)
             );
         }
-
         return classList;
     }
 
@@ -119,10 +161,10 @@ public class ComponentFactory {
             filename = classFile.getName();
 
             if (classFile.isDirectory()) {
-                scanDir(classFile.toURI().toString(), packageName + "." + filename);
+                classList.addAll(scanDir(classFile.toURI().toString(), packageName + "." + filename));
             }
 
-            if (classFile.isFile() && filename.endsWith("class")) {
+            if (classFile.isFile() && filename.endsWith(".class")) {
 
                 String className = filename.substring(0, filename.lastIndexOf("."));
 
@@ -134,20 +176,18 @@ public class ComponentFactory {
         return classList;
     }
 
-    private void processClasses(List<Class<?>> classList) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    private void addToSingletons(List<Class<?>> classList) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
 
         for (Class<?> aClass : classList) {
-            processClass(aClass);
+
+            if (aClass.isAnnotationPresent(Component.class)) {
+
+                addToSingletons(aClass);
+            }
         }
     }
 
-    private void processClass(Class<?> aClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        if (aClass.isAnnotationPresent(Component.class)) {
-            processComponentAnnotation(aClass);
-        }
-    }
-
-    private void processComponentAnnotation(Class<?> aClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    private void addToSingletons(Class<?> aClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
 
         Object instance = aClass.getDeclaredConstructor().newInstance();
 
