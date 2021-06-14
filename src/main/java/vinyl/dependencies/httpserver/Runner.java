@@ -38,7 +38,6 @@ public class Runner {
 
                         OutputStream responseBody = exchange.getResponseBody();
 
-
                         String responseText = "-" + path;
 
                         exchange.sendResponseHeaders(200, responseText.length());
