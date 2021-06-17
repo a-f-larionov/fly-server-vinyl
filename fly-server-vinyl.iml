@@ -12,5 +12,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Maven: com.sun.net.httpserver:http:20070405" level="project" />
+    <orderEntry type="library" name="Connector J 8" level="application" />
   </component>
 </module>

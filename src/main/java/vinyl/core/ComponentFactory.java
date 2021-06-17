@@ -8,70 +8,54 @@ import vinyl.intefaces.ComponentProcessor;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Consumer;
 
+@Component
 public class ComponentFactory {
 
     private Map<String, Object> singletons = new HashMap();
 
-    public ComponentFactory(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    private List<Class<?>> classList = new ArrayList<>();
 
-        List<Class<?>> classList = scanClasses(Vinyl.class);
+    public ComponentFactory() {
+
+    }
+
+    public ComponentFactory(Class applicationClass) throws IOException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+
+        classList.addAll(scanClasses(Vinyl.class));
 
         classList.addAll(scanClasses(applicationClass));
 
-
         addToSingletons(classList);
 
-        beforeInit();
+        beforeInitCaller();
 
         autowiring();
 
-        postConstructors();
+        postConstructorsCaller();
 
-        afterInit();
+        afterInitCaller();
     }
 
-    private void beforeInit() {
-        workWithInterfaced(ComponentProcessor.class, (singleton) ->
-                codeWithSingletons(
+    public List<Class<?>> getClassList() {
+        return classList;
+    }
+
+    private void beforeInitCaller() {
+        doWithInterfaced(ComponentProcessor.class, (singleton) ->
+                doWithSingletons(
                         ((ComponentProcessor) singleton)::beforeInit
                 )
         );
     }
 
-    private void afterInit() {
-        workWithInterfaced(ComponentProcessor.class, (singleton) ->
-                codeWithSingletons(
-                        ((ComponentProcessor) singleton)::afterInit
-                )
-        );
-    }
-
-    private void codeWithSingletons(Consumer run) {
-        singletons.forEach((name, component) -> {
-            run.accept(component);
-        });
-    }
-
-    private void workWithInterfaced(Class aInterface, Consumer doWhat) {
-
-        singletons.forEach((name, singleton) -> {
-            if (Arrays.asList(singleton.getClass().getInterfaces())
-                    .contains(aInterface)) {
-                doWhat.accept(singleton);
-            }
-        });
-    }
-
-    private void postConstructors() throws InvocationTargetException, IllegalAccessException {
+    private void postConstructorsCaller() throws InvocationTargetException, IllegalAccessException {
 
         for (Object component : singletons.values()) {
             for (Method method : component.getClass().getDeclaredMethods()) {
@@ -82,6 +66,30 @@ public class ComponentFactory {
                 }
             }
         }
+    }
+
+    private void afterInitCaller() {
+        doWithInterfaced(ComponentProcessor.class, (singleton) ->
+                doWithSingletons(
+                        ((ComponentProcessor) singleton)::afterInit
+                )
+        );
+    }
+
+    private void doWithSingletons(Consumer run) {
+        singletons.forEach((name, component) -> {
+            run.accept(component);
+        });
+    }
+
+    private void doWithInterfaced(Class aInterface, Consumer doWhat) {
+
+        singletons.forEach((name, singleton) -> {
+            if (Arrays.asList(singleton.getClass().getInterfaces())
+                    .contains(aInterface)) {
+                doWhat.accept(singleton);
+            }
+        });
     }
 
     private void processPostConstructor(Object component, Method method) throws InvocationTargetException, IllegalAccessException {
@@ -101,7 +109,7 @@ public class ComponentFactory {
     private void autowiring() throws IllegalAccessException {
         for (Object component : singletons.values()) {
 
-            for (Field field : component.getClass().getDeclaredFields()) {
+            for (java.lang.reflect.Field field : component.getClass().getDeclaredFields()) {
 
                 if (field.isAnnotationPresent(Autowired.class)) {
 
@@ -112,10 +120,21 @@ public class ComponentFactory {
         }
     }
 
-    private void processAutowiredField(Object component, Field field) throws IllegalAccessException {
+    private void processAutowiredField(Object component, java.lang.reflect.Field field) throws IllegalAccessException {
+
+        boolean isSetted = false;
 
         for (Object dependency : singletons.values()) {
             if (dependency.getClass().equals(field.getType())) {
+
+                if (isSetted) {
+                    throw new RuntimeException("Field have more then one candidate" +
+                            "" + component.getClass().getName() +
+                            "::" + field.getName() +
+                            " type " + field.getType()
+                    );
+                }
+                isSetted = true;
 
                 if (field.canAccess(component)) {
                     field.set(component, dependency);
@@ -126,9 +145,17 @@ public class ComponentFactory {
                 }
             }
         }
+
+        if (!isSetted) {
+            throw new RuntimeException("Cant find component to field: " +
+                    "" + component.getClass().getName() +
+                    "::" + field.getName() +
+                    " type " + field.getType()
+            );
+        }
     }
 
-    private List<Class<?>> scanClasses(Class applicationClass) throws IOException, URISyntaxException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    private List<Class<?>> scanClasses(Class applicationClass) throws IOException, ClassNotFoundException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
 
         List<Class<?>> classList = new ArrayList<>();
 
@@ -189,9 +216,14 @@ public class ComponentFactory {
 
     private void addToSingletons(Class<?> aClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
 
-        Object instance = aClass.getDeclaredConstructor().newInstance();
-
         String componentName = aClass.getName().toLowerCase();
+        Object instance;
+
+        if (aClass == ComponentFactory.class) {
+            instance = this;
+        } else {
+            instance = aClass.getDeclaredConstructor().newInstance();
+        }
 
         singletons.put(componentName, instance);
     }

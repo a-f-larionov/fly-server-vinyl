@@ -34,7 +34,7 @@ public class Runner {
                 public void handle(HttpExchange exchange) throws IOException {
 
                     try {
-                        pathToMethod.method.invoke(pathToMethod.component);
+                        Object response = pathToMethod.method.invoke(pathToMethod.component);
 
                         OutputStream responseBody = exchange.getResponseBody();
 

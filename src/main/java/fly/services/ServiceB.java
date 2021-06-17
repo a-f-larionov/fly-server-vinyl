@@ -12,7 +12,7 @@ public class ServiceB {
 
     @PostConstructor
     private void init() {
-        System.out.println("init Service B");
+        System.out.println("init Runner B");
     }
 
     public void doSome() {

@@ -8,9 +8,7 @@ public class Vinyl {
     public static void run(Class applicationClass) {
 
         try {
-            ComponentFactory componentFactory
-                    = new ComponentFactory(applicationClass);
-
+            new ComponentFactory(applicationClass);
 
         } catch (Exception e) {
 
