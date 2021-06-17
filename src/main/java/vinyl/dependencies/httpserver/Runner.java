@@ -6,12 +6,13 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import vinyl.annotation.Component;
 import vinyl.annotation.PostConstructor;
-import vinyl.intefaces.ComponentProcessor;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 public class Runner {
@@ -29,35 +30,64 @@ public class Runner {
 
             HttpContext context = httpServer.createContext(path);
 
-            context.setHandler(new HttpHandler() {
-                @Override
-                public void handle(HttpExchange exchange) throws IOException {
+            context.setHandler(exchange -> {
 
-                    try {
-                        Object response = pathToMethod.method.invoke(pathToMethod.component);
+                if (!exchange.getRequestURI().getPath().equals(path)) {
+                    String responseText = "Not found.";
 
-                        OutputStream responseBody = exchange.getResponseBody();
+                    exchange.sendResponseHeaders(404, responseText.length());
 
-                        String responseText = "-" + path;
+                    OutputStream responseBody = exchange.getResponseBody();
+                    responseBody.write(responseText.getBytes());
+                    responseBody.flush();
+                    responseBody.close();
 
-                        exchange.sendResponseHeaders(200, responseText.length());
+                    return;
+                }
 
-                        responseBody.write(responseText.getBytes());
-                        responseBody.flush();
-                        responseBody.close();
+                try {
 
-                    } catch (IllegalAccessException e) {
-                        e.printStackTrace();
-                    } catch (InvocationTargetException e) {
-                        e.printStackTrace();
+                    Object response = pathToMethod.method
+                            .invoke(pathToMethod.component,
+                                    exchange,
+                                    new RequestParams(queryToMap(exchange.getRequestURI().getQuery())));
+
+                    String responseText = "-" + path;
+
+                    if (response instanceof String) {
+                        responseText = response.toString();
                     }
+
+                    exchange.sendResponseHeaders(200, responseText.length());
+
+                    OutputStream responseBody = exchange.getResponseBody();
+
+                    responseBody.write(responseText.getBytes());
+                    responseBody.flush();
+                    responseBody.close();
+
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             });
         });
 
         httpServer.start();
+    }
 
-        HttpContext context = httpServer.createContext("/test");
-        context.setHandler(new Handler());
+    private Map<String, String> queryToMap(String query) {
+        if (query == null) {
+            return null;
+        }
+        Map<String, String> result = new HashMap<>();
+        for (String param : query.split("&")) {
+            String[] entry = param.split("=");
+            if (entry.length > 1) {
+                result.put(entry[0], entry[1]);
+            } else {
+                result.put(entry[0], "");
+            }
+        }
+        return result;
     }
 }
